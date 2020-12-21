@@ -31,7 +31,7 @@ Potential flight delays and their underlying costs not only affect passengers ma
 
 Our research questions have implications for airport regulators, airline managers and passengers. For airport regulators, our findings can help them prepare for stranded passengers and a backlog of flights in advance. In the ideal case, airline managers can make better scheduling decisions to minimize operational costs. By comparison with their competitors in the flight industry, carriers can make business responses to improve their management. Finally, if passengers adopt our prediction results, they will have a tool to evaluate the on-time probability of their flights when purchasing tickets and be better able to choose a flight, and decide if it is worth buying the travel insurance. 
 
-## Methodology (~3-4)
+## Methodology 
 ### Data 
 The U.S. Bureau of Transportation Statistics (BTS) is part of the U.S.  Department of Transportation (DOT). The credible content provided by BTS helps decision makers and the public better understand statistics on transportation. The data used in this study is the Airline On-Time Performance data, which collects all scheduled domestic flights by major commercial flight carriers in the United States since 1987(updated by month), which can be directly downloaded from the Bureau of Transportation Statistics website. The data cleaning process can be found in the section "Appendix" or through online repository (https://github.com/YvonneYifanZhu/STA304FinalProject_YifanZhu.git).   
         
@@ -40,13 +40,10 @@ The target population of this study is all domestic commercial flights in the Un
 - DayofMonth (31 levels): days of the month
 - DayofWeek (7 levels): days of the week
 - Cancelled (2 levels): cancelled flight indicator (1= Yes, 0=No)
-- Airline (17 levels): unique 2-letter carrier code
+- Carrier (17 levels): unique 2-letter carrier code
 - DepDelay (discrete): the difference between the scheduled and actual departure time in minutes; early departure is assigned to negative numbers.
 - DepDel15 (2 levels): departure delay indicator if 15 minutes or more (1= Yes)
 - AirTime (discrete):  flight time in minutes
-
-### Data Preparation 
-The non-response data has been named NA. In order to process this large data set more efficiently in RStudio during modeling, the author eliminated some missing data and randomly sampled 6000 observations from the sampled population of 618612 observations. In the following study, we will only use the 6000 newly sampled observations. Build a model using DayofWeek, Airline, AirTime to predict the delay probability of the flight. See the appendix or GitHub repository link for details on how the data set was cleaned and sampled. 
 
 ```{r,echo=FALSE,message=FALSE}
 # set up
@@ -56,13 +53,26 @@ library(brms)
 library(ggplot2)
 library(plyr)
 library(reshape2)
-# install.packages("lattixeExtra")
 library(latticeExtra)
 
 # download from Bureau 
 # https://www.transtats.bts.gov/DL_SelectFields.asp?Table_ID=236&DB_Short_Name=On-Time
 airline <- read.csv("/Users/yvonne_zhu/Desktop/STA304 Final Project_Dec.21/flights.csv")
 airline <- airline[,1:(length(airline)-1)]
+```
+
+
+### Data Preparation 
+The non-response data has been named NA in the data frame. In order to process this large data set more efficiently in RStudio during modeling, the author eliminated some missing data and randomly sampled 6000 observations from the sampled population of 618612 observations. In the following study, we will only use the 6000 newly sampled observations and build a model using DayofWeek, Airline, AirTime to predict the delay probability of the flight. See the appendix or GitHub repository link for details on how the data set was cleaned and sampled. 
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+airline0<-select(airline, DAY_OF_MONTH,DAY_OF_WEEK,OP_UNIQUE_CARRIER,DEP_DELAY,DEP_DEL15,CANCELLED,AIR_TIME)
+airline00<-head(airline0)
+library(kableExtra)
+df_table <- airline00 %>%
+  kbl(caption = "Sampled Data Set") %>%
+  kable_styling(bootstrap_options = "striped", position = "center",full_width = F,font_size = 7) %>%
+  kableExtra::kable_styling(latex_options = "hold_position")
+df_table
 ```
 
 ```{r,echo=FALSE}
@@ -95,7 +105,7 @@ merged_date$prob2 <- merged_date$CANCELLED/merged_date$freq
 ```
 
 ```{r,echo=FALSE}
-# subset for carriers' total/delay/cancelled flights
+# subset for carriers' total/delay/canceled flights
 carrier <- count(airline,"OP_UNIQUE_CARRIER")
 carrier_delay <-aggregate(DEP_DEL15~OP_UNIQUE_CARRIER, data=airline, FUN=sum) 
 carrier_cancelled <- aggregate(CANCELLED~OP_UNIQUE_CARRIER,data=airline, FUN=sum)
@@ -121,15 +131,17 @@ merged_week$prob2 <- merged_week$CANCELLED/merged_week$freq
 
 ### Data Visualization
 
+This section briefly explores the raw data containing 618612 flights during December 2019. 
+
 ```{r,echo=FALSE,fig.height=3,fig.width=7}
 df_plot1 <- select(merged_date, DAY_OF_MONTH, freq, DEP_DEL15)
 colnames(df_plot1)<-c("DAY_OF_MONTH","scheduled","delayed")
 plot1 <- melt(df_plot1,  id.vars = 'DAY_OF_MONTH', variable.name = 'status')
 ggplot(plot1, aes(DAY_OF_MONTH, value)) +
   geom_line(aes(colour = status))+
-  theme_minimal()+ggtitle("Scheduled versus Delayed Flights (Figure.1)")+xlab("day of month") + ylab("number") +theme(plot.title = element_text(size=8))
+  theme_minimal()+ggtitle("Scheduled versus Delayed Flights (Figure.1)")+xlab("day of month") + ylab("number") +theme(plot.title = element_text(size=10))
 ```
-Figure.1: This multiple-line plot compares the number of scheduled flights and the delayed flights during December. We can find the total number of flights has a fluctuating weekly trend, along with three dramatic drops in numbers. As for the delayed flights, there is no obvious pattern over one month, but it seems to have a correlation with the total number of flights. We compute the correlation coefficient in R, which is 0.535 (positive correlation). Therefore, we can conclude that the delayed probability is associate with the total number of scheduled flights. 
+Figure.1: This multiple-line plot compares the number of scheduled flights and the delayed flights during December. We can find the total number of flights has a fluctuating weekly trend, along with three dramatic drops in numbers. As for the delayed flights, there is no obvious pattern over one month, but it seems to have a correlation with the total number of flights. We compute the correlation coefficient in R, which is 0.535 (positive correlation). Therefore, we can conclude that the delayed probability associates with the total number of scheduled flights. 
 
 ```{r,echo=FALSE,include=FALSE}
 # correlation total ~ delayed, total ~ canceled
@@ -147,27 +159,48 @@ colnames(df_plot2)<-c("DAY_OF_MONTH","delayed","canceled")
 plot2<- melt(df_plot2,  id.vars = 'DAY_OF_MONTH', variable.name = 'status')
 ggplot(plot2, aes(DAY_OF_MONTH, value)) +
   geom_line(aes(colour = status))+
-  theme_minimal()+ggtitle("Delayed versus Cancelled Flights (Figure.2)")+xlab("day of month") + ylab("probability")+ theme(plot.title = element_text(size=8))
+  theme_minimal()+ggtitle("Delayed versus Cancelled Flights (Figure.2)")+xlab("day of month") + ylab("probability")+ theme(plot.title = element_text(size=10))
 ```
 
-Figure.2: The delayed and canceled probabilities are combined in this figure. It is surprising to find that while passengers face the different probabilities of delays, the probabilities of canceled flights remain stables over the month. Even when the delayed number is quite high, there is only a slight change in canceled flights. The correlation coefficient is 0.234, which is smaller than the previous one (match with our finding). 
+Figure.2: The delayed and canceled probabilities are combined in this figure. It is surprising to find that while passengers face the different probabilities of delays, the probabilities of canceled flights remain stable over the month. Even when the delayed number is quite high, there is only a slight change in canceled flights. We also compute the correlation coefficient between total flights and canceled flights (0.234), which is smaller than the previous one (matches with our finding). 
 
+```{r,echo=FALSE,message=FALSE,fig.height=4,fig.width=8}
+# data visualization
+# monthly flight by carriers, drop NA here since canceled flight is assigned to NA in df
+# install.packages("wesanderson") for color palettes
+library(wesanderson)
+
+airline1 <- na.omit(airline)
+ggplot(airline1, 
+       aes(x = OP_UNIQUE_CARRIER,fill = DELAY)) + 
+  geom_bar(position = "stack")+
+  theme_minimal()+ggtitle("Delayed Flights by Major Carriers (Figure.3)")+xlab("major carriers") + ylab("number")+ scale_fill_manual(values=wes_palette(n=4, name="FantasticFox1"))+ theme(plot.title = element_text(size=10))
+```
+
+Figure.3: This stacked bar plot shows the on-time performance of each airline. Apart from canceled flights, Southwest Airlines (WN), Delta Air Lines (DL), American Airlines (AA), Sky West Airlines (OO), and United Airlines (UA) are the most active carriers during December. We can also find that Southwest Airlines owns the dominant position compared to other airlines. According to BTS, Southwest carried the most domestic passengers of any United States airline in 2018, which matches our results in December 2019. However, Southwest Airlines is also considered to have the most delayed flights. Moreover, we find that among the delayed flights, most of the flight delays within 1 hour and there is only a small proportion of flights whose departure time is 2 hours later than the scheduled departure time. 
+
+```{r,echo=FALSE,fig.height=4,fig.width=8}
+ggplot(airline1,aes(x = DAY_OF_WEEK, fill = DELAY)) + 
+  geom_bar(position = "stack")+
+  theme_minimal()+ggtitle("FLight Delays of the Week (Figure.4)")+xlab("day of week") + ylab("number")+scale_fill_manual(values=wes_palette(n=4, name="Zissou1"))+ theme(plot.title = element_text(size=10))
+```
+
+Figure.4: The stacked bar chart visualizes the delayed time over the week. The transportation system is the busier on Monday and Sunday, while Wednesday and Thursday do not experience the high volume of traffic. Although most of the flights during the week delay within 1 hour, Monday has the highest number of flights that depart 2 hours after the scheduled time. 
 
 ## Model
 ### Model Selection
-A Bayesian logistic model is employed to address this study.Logistic regression is used to model the probability of a binary variable with only two potential outcomes labeled “0” and “1” while the predictor variables are continuous or categorical. The natural logarithm of an odd ratio, logit, is the central mathematical concept of the logistic regression. (Peng, Lee, & Ingersoll, 2002). There are three assumptions of the logistic regression model: First, binary regression requited the outcome variable to be binary; Second, the observation should be independent of each other. Third,there should be little or no multicollinearity among predictors; Fourth, independent variables have linear relationship with log odds; Fifth, large sample size is required to apply the logistic model. The logit can be stated as: 
+A Bayesian logistic model is employed to address this study. Logistic regression is used to model the probability of a binary variable with only two potential outcomes labeled “0” and “1” while the predictor variables are continuous or categorical.  There are several assumptions of the logistic regression model: First, binary regression requires the outcome variable to be binary; Second, the observation should be independent of each other. Third, there should be little or no multicollinearity among predictors; Fourth, independent variables have linear relationship with log odds; Fifth, large sample size is necessary to carry out the logistic model. The natural logarithm of an odd ratio, logit, is the central mathematical concept of the logistic regression. (Peng, Lee, & Ingersoll, 2002). The logit can be stated as: 
 $$ logit(P_i)=ln(P_i/(1-P_i)) = \beta_0+\beta_1  X_i $$
 Convert odds to simply probability:
 $$P=\frac{e^{ \beta_0+\boldsymbol{\beta} \boldsymbol{X}}}{e^{1+ \beta_0+\boldsymbol{\beta} \boldsymbol{X}}}$$
 
-Why Bayesian? Bayesian models use multiple and simultaneously running Markow chains that adopt priors to inform posteriors to update new posteriors until all the chains converge. Bayesian inference for logistic analyses follows the usual pattern of Bayesian analyses: 1) Write the likelihood function. Since the delay outcome is binary, $Likelihood = P^{Y} (1 − P)^{(1-Y)}$, $Y=1$ if delay, otherwise equals 0; 2) Form a prior distribution over all unknown parameters, the overall likelihood is the summation of all flights in the data set. The most common prior for logistic regression parameters is $\beta_x \sim N (\mu_x,\sigma_x^{2})$; 3) Find the posterior distribution over all parameters.The posterior distribution is derived by multiplying the prior distribution over all parameters by the full likelihood function (Kana, 2020). Therefore, the Bayesian logistic regression model is given by 
-$$ P(\boldsymbol{\beta}\mid data)\propto P(data\mid\boldsymbol{\beta}) P(\boldsymbol{\beta})$$
+Why Bayesian? Bayesian models use multiple and simultaneously running Markow chains that adopt priors to inform posteriors to update new posteriors until all the chains converge. Bayesian inference for logistic analyses follows the usual pattern of Bayesian analyses: 1) Write the likelihood function. Since the delay outcome is binary, $Likelihood = P^{Y} (1 − P)^{(1-Y)}$, $Y=1$ if delay, otherwise equals 0; 2) Form a prior distribution over all unknown parameters, the overall likelihood is the summation of all flights in the data set. The most common prior for logistic regression parameters is $\beta \sim N (\mu_0,\sigma_0^{2})$; 3) Find the posterior distribution over all parameters. The posterior distribution is derived by multiplying the prior distribution over all parameters by the full likelihood function (Kana, 2020). Therefore, the Bayesian logistic regression model is given by 
+$$ P(\boldsymbol{\beta}\mid data)\propto P(data\mid\boldsymbol{\beta}) P(\boldsymbol{\beta}),  \boldsymbol{\beta} \sim N (\mu_0,\sigma_0^{2})$$
 $$P(\beta_0,\beta_1,...,\beta_k)\propto P(y,X_1,...,X_k\mid\beta_0,\beta_1,...,\beta_k)P(\beta_0,\beta_1,...,\beta_k)$$
 
-The brms package in R offers a wide range of Bayesian single-level and multilevel models. Apart from brms package, there are many other packages developed to fit MLMs in R, which are limited insofar since they are only predicting the mean of the response distribution and their assumptions may be violated in many applications such as constant residual standard deviation in linear models.  (Bürkner, 2018). An alternative model in the study can be a ordinary logistic model using package lme4 in R. However, because of the intensive nature and build-in flexibility of Bayesian modeling, Bayesian models end up being more precise. Therefore, we choose to apply the Bayesian multilevel regression model in the following analysis. Assume the flight is schedule at day i and airport j, P stands for the probability of flight delay. Furthermore, $i=1,2,...,7$ represents the day of the week, from Monday to Sunday respectively. Since there are 17 major carriers in this study $j=1,2...,17$, which follows the order 9E, AA, AS, B6, DL, EV, F9, G4, HA, MQ, NK, OH, OO, UA, WN, YV, YX. 
+The brms package in R offers a wide range of Bayesian single-level and multilevel models. Apart from brms package, there are many other packages developed to fit MLMs in R, which are limited insofar since they are only predicting the mean of the response distribution and their assumptions may be violated in many applications such as constant residual standard deviation in linear models.  (Bürkner, 2018). An alternative model in the study can be a ordinary logistic model using package lme4 in R. However, because of the intensive nature and build-in flexibility of Bayesian modeling, Bayesian models end up being more precise. Therefore, we choose to apply the Bayesian single-level regression model in the following analysis. Assume the flight is schedule at day $i$ and airport $j$, $P$ stands for the probability of flight delay. Furthermore, $i=1,2,...,7$ represents the day of the week, from Monday to Sunday respectively. Since there are 17 major carriers in this study $j=1,2...,17$, it follows the order 9E, AA, AS, B6, DL, EV, F9, G4, HA, MQ, NK, OH, OO, UA, WN, YV, YX. The natural log of odds:
 
-- The natural log of odds
-$$ logit(P)=ln(P/(1-P)) = \beta_0+\beta_1  X_{AirTime,ij} + \sum{\beta_i  X_{DayofWeek,i}} +\sum{\beta_j  X_{Airline,j}+\epsilon} $$
+$$ logit(P)=ln(P/(1-P)) = \beta_0+\beta_1  X_{AirTime,ij} + \sum{\beta_i  X_{DayofWeek,i}} +\sum{\beta_j  X_{Airline,j}+\boldsymbol\epsilon} $$
 
 - $X_{AirTime_ij}$: If passenger purchases the flight on day i, then $X_{AirTime_i} = 1$ and $X_{AirTime,\neq i}=0$. 
 
@@ -180,7 +213,7 @@ $$ logit(P)=ln(P/(1-P)) = \beta_0+\beta_1  X_{AirTime,ij} + \sum{\beta_i  X_{Day
 - $\beta_j$: $j=1,2...,17$, the coefficient of variable $X_{Airline,j}$
 
 - Convert odds to simply probability
-$$P=\frac{e^{ \beta_0+\beta_1  X_{AirTime_ij} + \sum{\beta_i  X_{DayofWeek,i}} +\sum{\beta_j  X_{Airline,j}+\epsilon}}}{e^{1+\beta_0+\beta_1  X_{AirTime_ij} + \sum{\beta_i  X_{DayofWeek,i}} +\sum{\beta_j  X_{Airline,j}+\epsilon}}},  i=1,2...7, j=1,2,...17$$
+$$P=\frac{e^{ \beta_0+\beta_1  X_{AirTime_ij} + \sum{\beta_i  X_{DayofWeek,i}} +\sum{\beta_j  X_{Airline,j}+\boldsymbol\epsilon}}}{e^{1+\beta_0+\beta_1  X_{AirTime_ij} + \sum{\beta_i  X_{DayofWeek,i}} +\sum{\beta_j  X_{Airline,j}+\boldsymbol\epsilon}}},  i=1,2...7, j=1,2,...17$$
 		
 ```{r,echo=FALSE}
 # drop NA
@@ -202,43 +235,22 @@ dff$ORIGIN_AIRPORT_ID <- as.factor(dff$ORIGIN_AIRPORT_ID)
 ```{r,echo=FALSE,include=FALSE}
 library(brms)
 set.seed(2020)
-model <- brm(DEP_DEL15 ~ DAY_OF_WEEK +OP_UNIQUE_CARRIER+AIR_TIME,data=dff, family=bernoulli(),control=list(adapt_delta=0.90))
+model <- brm(DEP_DEL15 ~ DAY_OF_WEEK +OP_UNIQUE_CARRIER+AIR_TIME,data=dff, family=bernoulli(),seed=2020, control=list(adapt_delta=0.90))
 ```
 
 ```{r,echo=FALSE,include=FALSE}
 summary(model)
 ```
 
-## Modeling Results (~3-4)
-```{r,echo=FALSE,message=FALSE,fig.height=4,fig.width=8}
-# data visualization
-# monthly flight by carriers, drop NA here since canceled flight is assigned to NA in df
-# install.packages("wesanderson") for color palettes
-library(wesanderson)
+### Model Diagonstics
+Similar to logistic model, there are five assumptions that need to be investigated: correct specification of the model, linearity, independence, equal variance, and normality. There are many tools to check the Bayesian regression model. Apart from the results shown in the appendix, we can use the package(shinystan) which can directly produce the diagnostic plots. Figure.5: Posterior Predictive Graph. Posterior predictive checkBased on the graphical check, there is no significant systematic discrepancies of our data from what can be predicted from our model.Hence, we have a correct specification of this Bayesian model; Figure.6: Non-convergence Plot. We use the mcmc_trace function from the bayesplot package to plot the caterpillar plot for each parameter. From the series of plot below, four chains mix well. 
 
-airline1 <- na.omit(airline)
-ggplot(airline1, 
-       aes(x = OP_UNIQUE_CARRIER,fill = DELAY)) + 
-  geom_bar(position = "stack")+
-  theme_minimal()+ggtitle("Delayed Flights by Major Carriers (Figure.3)")+xlab("major carriers") + ylab("number")+ scale_fill_manual(values=wes_palette(n=4, name="FantasticFox1"))+ theme(plot.title = element_text(size=8))
-```
-
-Figure.3: This stacked bar plot shows the on-time performance of each airline. Apart from canceled flights, Southwest Airlines (WN), Delta Air Lines (DL), American Airlines (AA), Sky West Airlines (OO), and United Airlines (UA) are the most active carriers during December. We can also find that Southwest Airlines owns the dominant position compared to other airlines. According to BTS, Southwest carried the most domestic passengers of any United States airline in 2018, which matches our results in December 2019. However, Southwest Airlines is also considered to have the most delayed flights. Moreover, we find that among the delayed flights, most of the flight delays within 1 hour and there is only a small proportion of flights whose departure time is 2 hours later than the scheduled departure time. 
-
-
-```{r,echo=FALSE,fig.height=4,fig.width=8}
-ggplot(airline1,aes(x = DAY_OF_WEEK, fill = DELAY)) + 
-  geom_bar(position = "stack")+
-  theme_minimal()+ggtitle("FLight Delays of the Week (Figure.4)")+xlab("day of week") + ylab("number")+scale_fill_manual(values=wes_palette(n=4, name="Zissou1"))+ theme(plot.title = element_text(size=8))
-```
-
-Figure.4: The stacked bar chart visualizes the delayed time over the week. The transportation system is the busier on Monday and Sunday, while Wednesday and Thursday do not experience the high volume of traffic. Although most of the flights during the week delay within 1 hour, Monday has the highest number of flights that depart 2 hours after the scheduled time. 
+## Modeling Results 
 
 ```{r,echo=FALSE,message=FALSE}
 # make a table for the output
 library(kableExtra)
-library(kableExtra)
-yz_table <- data.frame("estimated coefficients" = c("-1.18","-0.43","-0.49","-0.51","-0.32","-0.45","-0.18","-0.28","0.12","0.54","-0.52","0.02","0.29","-0.00","-1.14","-0.21","0.00","0.07","-0.10","-0.13","0.17","0.21","-0.24","0.00"),"lower 95%CI"=c(" -1.52","-0.66","-0.73","-0.74","-0.55","-0.70","-0.38","-0.65","-0.33","0.12","-0.90","-0.57","-0.26","-0.61","-2.11","-0.65","-0.49","-0.40","-0.48","-0.53","-0.19","-0.26","-0.70","0.00"),"upper 95%CI"=c("-0.83","-0.21","-0.25","-0.28","-0.09","-0.21","0.03","0.08","0.56","0.95","-0.15","0.59","0.80","0.58","-0.30","0.24","0.48","0.52","0.27","0.27","0.51","0.68","0.21","0.00"))
+yz_table <- data.frame("estimated coefficients" = c("-1.60","-0.24","-0.25","-0.49","-0.21","-0.21","-0.05","0.10","0.34","0.95","-0.09","0.50","0.72","0.72","-0.46","0.32","-0.08","0.34","0.15","0.23","0.64","0.27","0.19","0.00"),"lower 95%CI"=c(" -1.97","-0.47","-0.48","-0.72","-0.43","-0.45","-0.27","-0.30","-0.14","0.52","-0.49","-0.06","0.16","0.18","-1.51","-0.13","-0.69","-0.13","-0.24","-0.17","0.27","-0.26","-0.27","0.00"),"upper 95%CI"=c("-1.23","-0.02","-0.02","-0.25","0.01","0.03","0.16","0.49","0.82","1.40","0.33","1.10","1.28","1.25","0.44","0.77","0.48","0.83","0.56","0.65","1.03","0.78","0.64","0.00"))
 row.names(yz_table) <- c("Intercept","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday","American Airlines (AA)","Alaska Airlines (AS)"," JetBlue Airways (B6)","Delta Air Lines (DL)","Atlantic Southeast Airlines (EV)","Frontier Airlines (F9)","Allegiant Air (G4)","Hawaiian Airlines (HA)","Envoy Air (MQ)","Spirit Airlines (NK)","Comair (OH)","Sky West Airlines (OO)","United Airlines (UA)","Southwest Airlines (WN)","Mesa Airlines (YV)","Repblic Airways (YX)","AirTime")
 
 table <- yz_table %>%
@@ -247,33 +259,26 @@ table <- yz_table %>%
   kableExtra::kable_styling(latex_options = "hold_position")
 table
 ```
-Table.1: This table contains the regression results of the Bayesian logistic model. The respective coefficients are listed in the cells. Since P=1 if flight delays, the higher estimated coefficient means it is more likely to delay. Compared to Monday, all the coefficients are negative; thus, Monday has the highest probability to experience flight delays while Thursday has the lowest probability on average. 
+Table.2: This table contains the regression results of the Bayesian logistic model. The respective coefficients are listed in the cells. Since P=1 if flight delays, the higher estimated coefficient means it is more likely to delay. Compared to Monday, all the coefficients are negative; thus, Monday has the highest probability to experience flight delays while Thursday has the lowest probability on average. 
 
-As for the airlines, respective to Endeavor Air (9E),  Alaska Airlines, JetBlue Airways, Atlantic Southeast Airlines, Frontier Airlines, Southwest Airlines, and Mesa Airlines have worse on-time performance. Since JetBlue Airways’s coefficient is the largest (0.54), the flights scheduled by JetBlue is the most likely to delay. On the other hand, Hawaiian Airlines (-1.14) is predicted to have the highest on-time rate compared to other major carriers. Also, as discussed above, Southwest Airlines has the highest number of total delayed flights but according to our results, Southwest Airlines does not have a higher probability to delay. The total number of delay is mainly contributed by the number of scheduled flights. Therefore, it may be one of the reasons that most domestic passengers in the United States choosing Southwest Airlines. 
+As for the airlines, respective to Endeavor Air (9E),  Delta Air Lines (DL), Hawaiian Airlines (HA), Spirit Airlines (NK) have better on-time performance. Since JetBlue Airways’s coefficient is the largest (0.95), the flights scheduled by JetBlue is the most likely to delay. On the other hand, Hawaiian Airlines (-0.46) is predicted to have the highest on-time rate compared to other major carriers. Also, as discussed above, Southwest Airlines has the highest number of total delayed flights but according to our results, Southwest Airlines does not have a higher probability to delay. The total number of delay is mainly contributed by the number of scheduled flights. Therefore, it may be one of the reasons that most domestic passengers in the United States choosing Southwest Airlines. 
 
-Longer flights come with more retributions and regulations that airlines need to deal with. Also, since their routes involved multiple airspaces and airlines need to corporate with more conditions (such as the changing weather along the way). However, it is interesting to find that the airline does not show any significant impact on flight delays. To minimize the potential cost, the best case is purchasing a flight that flys on Thursday carried by Hawaiian Airlines. Try to avoid the worst scenario, booking a flight that is scheduled on Monday carried by JetBlue Airways. 
+Longer flights always come with more retributions and regulations that airlines need to deal with. In addition, since their routes involved multiple airspaces and airlines need to corporate with more conditions (such as the changing weather along the route). However, it is interesting to find that the air time does not show any significant impact on flight delays. To minimize the potential cost, the best case is purchasing a flight that plans on Thursday carried by Hawaiian Airlines. Try to avoid the worst scenario: booking a flight that is scheduled on Monday carried by JetBlue Airways. 
 
-```{r,echo=FALSE,include=FALSE,message=FALSE,warning=FALSE}
-stanplot(model,type = "areas",prob = 0.95)
-```
-
-```{r,echo=FALSE,include=FALSE,message=FALSE,warning=FALSE}
-stanplot(model,type = "trace")
-```
 
 ## Discussion
 ### Model Summary 
-Most of the model assumptions is satisfied. From the model results, we find that flight delay probabilities vary across the day of the week and different airline carriers, but it is surprising to find that flight time has no significant contribution to determine flight delays. Since CIs for most of the variables in the population level do not contain zero (means p-value <0.05), there is strong statistical evidence to illustrate that flight delays are highly associated with day of the week and the selected carrier. As the estimated coefficients shown in the table, we can compute the odd ratio for each category; thus, we can access the delay probabilities of all flights in general. To be more precise, Monday has the highest probability (P=0.235) to encounter flight delays while Thursday is the lowest (p=0.149). Also, choosing airlines is essential to flight delays. In our results, purchasing a flight ticket of JetBlue Airways (B6) is the most likely to delay while Delta Airlines has the best on-time performance on average.
+From the model results, we find that flight delay probabilities vary across the day of the week and different airline carriers, but it is surprising to find that flight time has no significant contribution to determine flight delays. Since CIs for most of the variables in the population level do not contain zero (means p-value <0.05), there is strong statistical evidence to illustrate that flight delays are highly associated with day of the week and the selected carrier. As the estimated coefficients shown in the table, we can compute the odd ratio for each category; thus, we can access the delay probabilities of all flights in general. To be more precise, Monday has the highest probability (P=0.172) to encounter flight delays while Thursday is the lowest (p=0.110). Also, choosing airlines is essential to flight delays. In our results, purchasing a flight ticket of JetBlue Airways (B6) is the most likely to delay while Delta Airlines has the best on-time performance on average.
 
 ## Conclusion 
-This paper presents a single-level analysis for the on-time performance of commercial flights in the United States. Our results indicate that the on-time departure probability depends significantly on the day of the week and airline carriers. According to the estimation, Monday has the highest probability to delay at the population-level for all airlines. One hypothesis is that airlines and airports are experiencing the highest volume of flights among seven days of the week, making it hard to dispatch aircrafts. For passengers, it can be a little more strategic on buying flight tickets. To minimize your chances of delays, book your flights on Wednesday, Thursday,and Saturday or choose the carriers such as Delta Airlines, Hawaiian Airlines, and Alaska Airlines if possible. If you cannot avoid traveling on Monday, purchasing travel insurance is worth considering. 
+This paper presents a single-level analysis for the on-time performance of commercial flights in the United States. Our results indicate that the on-time departure probability depends significantly on the day of the week and airline carriers. According to the estimation, Monday has the highest probability to delay at the population-level for all airlines. One hypothesis is that airlines and airports are experiencing the highest volume of flights on Monday, making it harder to dispatch aircrafts. For passengers, it can be a little more strategic on buying flight tickets. To minimize your chances of delays, book your flights on Wednesday and Thursday or choose the carriers such as Delta Airlines, Hawaiian Airlines, and Spirit Airlines if possible. If you cannot avoid traveling on Monday, purchasing travel insurance is worth considering. 
 
-For airports dealing with a foreseeable rising number of flight delays, in addition to expanding and modernizing airport capacity in the long-term, airports should increase efficiency of existing resources by upgrading utilization and updating the air traffic management system. The results also give implications to airline managers as comparing the on-time performance within the industry. Except looking for the delay probability, they should investigate the structure of the airline's flights. For example, if this carrier has more scheduled lines depart/ arrive at the busier commercial airports (e.g.,  Hartsfield-Jackson Atlanta International Airport, Los Angeles International Airport, John F. Kennedy International Airport), it is more likely to raise the prediction to flight delays on average. 
+For airports dealing with a foreseeable rising number of flight delays, in addition to expanding and modernizing airport capacity in the long-term, airports should increase efficiency of existing resources by upgrading utilization and updating the air traffic management system. The results also give implications to airline managers as comparing the on-time performance within the industry. Except looking for the delay probability, they should investigate the structure of the airline's flights. For example, if this carrier has more scheduled lines depart/ arrive at the busier commercial airports (e.g., Hartsfield-Jackson Atlanta International Airport, Los Angeles International Airport, John F. Kennedy International Airport), it is more likely to raise the prediction to flight delays on average. 
 
 ### Weakness & next steps 
-The work might have some drawbacks as follows. Firstly, our research might have omitted variable bias problems. Apart from the day of the week, airline carrier, airtime, there are many other variables that potentially have a significant impact on flight delays, such as scheduled time, departure/ arrival airports, the capacity of a flight, etc. By omitting these variables, existing variables’ estimated coefficients and significance may be biased; hence, leading to an invalid inference. Secondly, one of the logistic regression assumptions requires the observations to be independent of each other which is not satisfied in this study. It is because one flight delay will always influence the following flights. Nevertheless, it is still possible to build a model from dependent observations (Daskalakis et al., 2019). Lastly, since the data in this study collects the information of December only, the evidence is not enough to arrive at a more generalized conclusion. Although the transportation system in December is the closest to its capacity, if we want to study the delay probability on a yearly basis, we should conclude the data from January to December. 
+The work might have some drawbacks as follows. Firstly, our research might have omitted variable bias problems. Apart from the day of the week, airline carrier, airtime, there are many other variables that potentially have a significant impact on flight delays, such as the scheduled time, departure/ arrival airports, the passenager capacity of a flight, etc. By omitting these variables, existing variables’ estimated coefficients and significance may be biased; hence, leading to an invalid inference. Secondly, logistic regression and Bayesian model require the observations to be independent of each other which is not satisfied in this study. This is because one flight delay will always influence the following flights. Nevertheless, it is still possible to build a model from dependent observations (Daskalakis et al., 2019). Lastly, since the data in this study collects the information of December only, the evidence is not enough to arrive at a more generalized conclusion. Although the transportation system in December is the closest to its capacity, if we want to study the delay probability on a yearly basis, we should conclude the data from January to December. 
 
-Related to the hypothesis that flight delays may perform differently within departure (or arrival) airports, a further study is therefore suggested to investigate the group-level effect within airports using a multilevel regression model. By adding a layer in the model, respective coefficients at the population-level and group-level can show whether the three explanatory variables have the same effect across all airports. Furthermore, we can focus on one airport or simply just one flight. If we focus on one flight, flight carrier, departure/ arrival airport, and flight time are fixed; thus, using the historical data, we can arrive at a more accurate model to predict the on-time performance of this flight by day of the week. 
+Related to the hypothesis that flight delays may perform differently within departure (or arrival) airports, a further study is therefore suggested to investigate the group-level effect within airports using a multilevel regression model. By adding a layer in the model, respective coefficients at the population-level and group-level can show whether the three explanatory variables have the same effect across all airports. Furthermore, we can focus on one airport or simply just one flight. By focusing on one flight, flight carrier, departure/ arrival airport, and flight time are fixed; thus, using the historical data, we can arrive at a more accurate model to predict the on-time performance of this flight by day of the week. 
 
 ## Reference
 
@@ -315,9 +320,13 @@ latticeExtra: Extra Graphical Utilities Based on Lattice
 
 wesanderson: A Wes Anderson Palette Generator
 
+bayesplot: extensive library of plotting functions for use after fitting Bayesian models
+
 Retrieved December 20, 2020, from https://cran.r-project.org/web/packages/available_packages_by_name.html
 
 ## Appendix
+Repository: https://github.com/YvonneYifanZhu/STA304FinalProject_YifanZhu.git
+
 ### Set up and import data
 ```{r,echo=TRUE,message=FALSE}
 # set up
@@ -391,7 +400,7 @@ merged_week$prob2 <- merged_week$CANCELLED/merged_week$freq
 ```
 
 ### Data Visualization
-Figure.1
+Figure.1 Scheduled versus Delayed Flights
 ```{r,echo=TRUE,fig.show='hide',fig.height=4,fig.width=8}
 df_plot1 <- select(merged_date, DAY_OF_MONTH, freq, DEP_DEL15)
 colnames(df_plot1)<-c("DAY_OF_MONTH","scheduled","delayed")
@@ -402,7 +411,7 @@ ggplot(plot1, aes(DAY_OF_MONTH, value)) +
  xlab("day of month") + ylab("number")+ theme(plot.title = element_text(size=10))
 ```
 
-Figure.2
+Figure.2 Delayed versus Cancelled Flights
 ```{r,echo=TRUE, fig.show='hide',message=FALSE,fig.height=4,fig.width=8}
 # time series plot for December
 # convert into long format 
@@ -427,7 +436,7 @@ cor(merged_date$freq,merged_date$prob2,method = "pearson", use = "complete.obs")
 # 0.2340273
 ```
 
-Figure.3
+Figure.3 Delayed Flights by Major Carriers
 ```{r,echo=TRUE,fig.show='hide',fig.height=4,fig.width=8}
 # data visualization
 # monthly flight by carriers, drop NA here since canceled flight is assigned to NA in df
@@ -444,7 +453,7 @@ ggplot(airline1,
   theme(plot.title = element_text(size=10))
 ```
 
-Figure.4
+Figure.4 FLight Delays of the Week
 ```{r,echo=TRUE,fig.show='hide',fig.height=4,fig.width=8}
 ggplot(airline1,aes(x = DAY_OF_WEEK, fill = DELAY)) + 
   geom_bar(position = "stack")+
@@ -475,7 +484,7 @@ dff$ORIGIN_AIRPORT_ID <- as.factor(dff$ORIGIN_AIRPORT_ID)
 ```{r,echo=TRUE,results='hide',message=FALSE}
 library(brms)
 set.seed(2020)
-model <- brm(DEP_DEL15 ~ DAY_OF_WEEK +OP_UNIQUE_CARRIER+AIR_TIME,data=dff,
+model <- brm(DEP_DEL15 ~ DAY_OF_WEEK +OP_UNIQUE_CARRIER+AIR_TIME,data=dff,seed=2020,
              family=bernoulli(),control=list(adapt_delta=0.90))
 ```
 
@@ -483,24 +492,44 @@ model <- brm(DEP_DEL15 ~ DAY_OF_WEEK +OP_UNIQUE_CARRIER+AIR_TIME,data=dff,
 summary(model)
 ```
 
-## Modeling Results 
+
+### Model Diagonstics
+
+Figure.5: Posterior Predictive Graph
+```{r,fig.width=6, fig.height=3}
+pp_check(model,nsamples = 100)
+```
+
+Figure.6: Non-convergence Plot
+```{r,message=FALSE,warning=FALSE}
+library(bayesplot)
+mcmc_trace(model)+xlab("Post-warmup iteration")
+```
+
+Shinystan
+```{r,message=FALSE}
+# library(shinystan)
+# launch_shinystan(model), the results will be shown on the website
+```
+
+### Model Results
+Table.1 Population-Level Effects
 ```{r,echo=TRUE}
 # make a table for the output
 library(kableExtra)
-yz_table <- data.frame("estimated coefficients" =c("-1.18","-0.43","-0.49","-0.51",
-               "-0.32","-0.45","-0.18","-0.28","0.12","0.54","-0.52",
-               "0.02","0.29","-0.00","-1.14","-0.21","0.00","0.07",
-               "-0.10","-0.13","0.17","0.21","-0.24","0.00"),
-  "lower 95%CI"=c(" -1.52","-0.66","-0.73","-0.74","-0.55","-0.70","-0.38",
-                  "-0.65","-0.33","0.12","-0.90","-0.57","-0.26","-0.61",
-                  "-2.11","-0.65","-0.49","-0.40","-0.48",
-                  "-0.53", "-0.19","-0.26","-0.70","0.00"),
-  "upper 95%CI"=c("-0.83","-0.21","-0.25","-0.28","-0.09","-0.21","0.03",
-                  "0.08","0.56", "0.95","-0.15","0.59","0.80","0.58","-0.30",
-                  "0.24","0.48","0.52","0.27","0.27","0.51","0.68","0.21","0.00"))
-
-row.names(yz_table) <- c("Intercept","Tuesday","Wednesday","Thursday","Friday","Saturday",
-                         "Sunday","American Airlines (AA)","Alaska Airlines (AS)",
+yz_table <- data.frame("estimated coefficients" =
+                         c("-1.60","-0.24","-0.25","-0.49","-0.21",
+                           "-0.21","-0.05", "0.10","0.34", "0.95","-0.09",
+                           "0.50","0.72","0.72","-0.46","0.32","-0.08","0.34",
+               "0.15","0.23","0.64","0.27","0.19","0.00"),
+    "lower 95%CI"=c(" -1.97","-0.47","-0.48","-0.72","-0.43","-0.45","-0.27",
+                    "-0.30","-0.14","0.52","-0.49","-0.06","0.16","0.18","-1.51",
+                    "-0.13","-0.69","-0.13","-0.24","-0.17","0.27","-0.26","-0.27","0.00"),
+    "upper 95%CI"=c("-1.23","-0.02","-0.02","-0.25","0.01","0.03","0.16","0.49","0.82",
+                    "1.40","0.33","1.10","1.28","1.25","0.44","0.77","0.48","0.83",
+                    "0.56","0.65","1.03","0.78","0.64","0.00"))
+row.names(yz_table) <- c("Intercept","Tuesday","Wednesday","Thursday","Friday",
+                         "Saturday","Sunday","American Airlines (AA)","Alaska Airlines (AS)",
                          " JetBlue Airways (B6)","Delta Air Lines (DL)",
                          "Atlantic Southeast Airlines (EV)","Frontier Airlines (F9)",
                          "Allegiant Air (G4)","Hawaiian Airlines (HA)","Envoy Air (MQ)",
@@ -509,15 +538,8 @@ row.names(yz_table) <- c("Intercept","Tuesday","Wednesday","Thursday","Friday","
                          "Mesa Airlines (YV)","Repblic Airways (YX)","AirTime")
 
 table <- yz_table %>%
-  kbl(caption = "Population-Level Effects (Table.1)") %>%
+  kbl(caption = "Population-Level Effects") %>%
   kable_styling(bootstrap_options = "striped", position = "center",full_width = F) %>%
   kableExtra::kable_styling(latex_options = "hold_position")
 ```
 
-```{r,echo=TRUE,message=FALSE,warning=FALSE,fig.height=3,fig.width=8}
-mcmc_plot(model,type = "areas",prob = 0.95)
-```
-
-```{r,echo=TRUE,message=FALSE,warning=FALSE,fig.height=4,fig.width=8}
-mcmc_plot(model,type = "trace")
-```
